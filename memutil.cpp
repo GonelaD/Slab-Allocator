@@ -5,11 +5,14 @@ using namespace std;
 
 int main(){
 
-	char *x;
+	int *x;
 
-	x = (char *)mymalloc(sizeof(char));
+	x = (int *)mymalloc(sizeof(int));
 
-	*x = 'A';
+	*x = 38;
+
+	// void *y;
+	// y = mymalloc(1024);
 
 	// printf("%s\n," );
 

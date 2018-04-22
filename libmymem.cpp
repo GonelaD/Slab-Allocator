@@ -17,6 +17,7 @@ typedef struct slab_header{
 
 	unsigned int totobj;
 	unsigned int freeobj;
+	void *slab_start;
 	//bitmap
 	bucket_struct * bucket;
 	slab_header * nxt_slab;
@@ -51,14 +52,27 @@ void *mymalloc(const unsigned size){
 
 
 		x = (void *)((char *)x + sizeof(slab_header));
-
+		q->slab_start = x;
 
 		// return y;
 
 	}
 
-	return x;
+	int bucket_obj;
+
+	for (int i = 0 ; i < 12 ; i++ ){
+
+		if (bucket_array[i].bucket_size > size) {
+			bucket_obj = i;
+			break;
+		}
+
+	}
+
+	printf("%d\n", bucket_obj);
+
+	return bucket_array[bucket_obj].slab->slab_start;
 
 
-	
+	// return x;
 }
