@@ -3,20 +3,34 @@
 
 using namespace std;
 
+typedef struct longdata{
+
+	long int array[1000];
+
+} bigData;
+
 int main(){
 
-	int *x;
+	cout << sizeof(bigData) << endl;
 
-	x = (int *)mymalloc(sizeof(int));
+	for ( int i = 0 ; i < 1000 ; i++){
 
-	*x = 38;
+		bigData *x;
+
+		x = (bigData *) mymalloc (sizeof(bigData));
+		
+		x->array[0] = i + 25;
+		
+		cout << x->array[0] << endl;
+	}
+
 
 	// void *y;
 	// y = mymalloc(1024);
 
 	// printf("%s\n," );
 
-	cout << *x << endl;
+	// printf("%d\n",sizeof(int));
 
 	return 0;
 }
