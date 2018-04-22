@@ -3,5 +3,6 @@
 
 void *mymalloc(const unsigned size );
 
-// void myfree(const *ptr);
+void myfree(const void *ptr);
+
 #endif
