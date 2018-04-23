@@ -20,14 +20,14 @@ void *threadmain(void * niterations){
 	for (int i = 0; i < n_iterations; i++) {
 		
 		int objsize = rand()%12;
-		printf("%d th iteration %d\n", i , objsizelist[objsize]);
+		// printf("%d th iteration %d\n", i , objsizelist[objsize]);
 
 		int *x[5];
 
 		for(int j = 0 ; j < 5 ;j++){
 
 			x[j] = (int *)mymalloc (objsizelist[objsize]);
-			printf("%ld\n", x[j] );
+			// printf("%ld\n", x[j] );
 			(*x[j]) = j;
 		}
 
@@ -35,6 +35,7 @@ void *threadmain(void * niterations){
 
 		for(int k = 0; k < 5; k++){
 
+			// printf("%ld\n", x[k]);
 			myfree((void *)x[k]);
 		}
 		// for(int j = 0 ; j < 5 ; j++){
