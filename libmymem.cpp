@@ -1,14 +1,15 @@
 #include <bits/stdc++.h>
 #include <sys/mman.h>
+#include <mutex>
 #include "libmymem.hpp"
-
-//1 means occupied
 
 typedef struct bucket{
 
+	unsigned int bucket_size;
 	//Per bucket lock
 
-	unsigned int bucket_size;
+	std::mutex bucket_mutex;
+
 	//Pointer to slab
 	struct slab_header * slab = NULL;
 
@@ -19,7 +20,7 @@ typedef struct slab_header{
 
 	unsigned int totobj;
 	unsigned int freeobj;
-	unsigned int bitmap[171];
+	unsigned int bitmap[171]; // In the bitmap - 1 mean occupied and 0 is unoccupied
 	bucket_struct * bucket = NULL;
 	slab_header * nxt_slab = NULL;
 	slab_header * prev_slab = NULL;
@@ -31,26 +32,24 @@ bucket_struct bucket_array[12];
 
 void *mymalloc(const unsigned size){
 
-
-	for ( int i = 0 ; i < 12 ; i++) {
-
-		bucket_array[i].bucket_size = 1 << (i + 2);
-
-	}
-
-	// int bucket_obj;
 	void *address;
+
+	address = NULL;
 
 	for (int i = 0 ; i < 12 ; i++ ){
 
-		if (bucket_array[i].bucket_size >= size) {
-			
-			// printf("bucket size %d\n", bucket_array[i].bucket_size );
+		if ( (unsigned int) (1 << (i + 2)) >= size) {
 
-			// bucket_obj = i;
 			bool flag = true;
 
 			slab_header *q;
+			slab_header p;
+
+			//Critical Section
+			// std::lock_guard <std::mutex> lock (bucket_array[i].bucket_mutex);
+
+			bucket_array[i].bucket_mutex.lock();
+			// printf("CS\n");
 
 			q = bucket_array[i].slab;
 			slab_header * prev = NULL;
@@ -59,7 +58,7 @@ void *mymalloc(const unsigned size){
 
 				for (unsigned int j = 0 ; j <= (q->totobj/32) + 1 && flag && q->freeobj > 0; ){
 					
-					if(q -> bitmap[j] == 4294967295) j++; //(2 power 32) - 1			
+					if( q->bitmap[j] == 4294967295) j++; //(2 power 32) - 1			
 					
 					else{
 
@@ -68,13 +67,12 @@ void *mymalloc(const unsigned size){
 							int check = (q->bitmap[j] & (1 << (31 - k))) >> (31 - k);  //k th bit of jth 
 							
 							if (check == 0){
-								// printf("abefore %u\n", (unsigned int)q->bitmap[j] );
-								q->bitmap[j] += 1 << (31 - k);  //free object
-								// printf("aafter %u\n", (unsigned int) q->bitmap[j] );
 
-								// printf("bitmap %d\n", q->bitmap[j]);
+								//Mark object as occupied						
+							    q->bitmap[j] += 1 << (31 - k);  
 
-								q->freeobj--;
+							    q->freeobj--;
+
 
 								slab_header **obj_slab_pointer;
 
@@ -83,9 +81,13 @@ void *mymalloc(const unsigned size){
 								*(obj_slab_pointer) = q;
 
 								address = (void *)((char *)q + sizeof(slab_header) + (j*32 + k)*(sizeof(slab_header *) + bucket_array[i].bucket_size) + sizeof(slab_header *));
-								flag = false;
-								break;
+								
+								//End critical section. 
+								bucket_array[i].bucket_mutex.unlock();
+								
+								return address;
 							}
+
 						}
 
 					}
@@ -103,15 +105,13 @@ void *mymalloc(const unsigned size){
 					return y;
 				}
 
+				// printf("First\n");
+
 				slab_header *p;
 				p = (slab_header *)y;
 
-				// printf("LOL\n");
-
-				// bucket_array[i].slab = ;
-
-				if (prev == NULL) bucket_array[i].slab = p;
-				else prev->nxt_slab = p;
+				bucket_array[i].bucket_size = (1 << (i + 2));
+				
 				
 				p->totobj = (64*1024 - sizeof(slab_header))/(bucket_array[i].bucket_size + sizeof(slab_header *));
 				p->freeobj = p->totobj - 1;
@@ -132,16 +132,25 @@ void *mymalloc(const unsigned size){
 				*(obj_slab_pointer) = p;
 
 				address = (void *)((char *)y + sizeof(slab_header) + sizeof(slab_header *)); 
+				
+
+				if (prev == NULL) bucket_array[i].slab = p;
+				else prev->nxt_slab = p;
+				
+				//End critical section. 
+				bucket_array[i].bucket_mutex.unlock();
+				return address;
 			}	
+			
 
 			break;
 		}
 
 	}
 
-	// printf("%ld\n", address );
+	// printf("Done\n");
+
 	return address;
-	// return x;
 }
 
 void myfree(const void *ptr){
@@ -152,33 +161,29 @@ void myfree(const void *ptr){
 
 	slab_header *q;
 
+	//Critical Section
+
+	(*x)->bucket->bucket_mutex.lock();
+
 	q = *x;
 
 	// printf("%d\n", q->freeobj );
 	
-	q->freeobj++;
 
 	unsigned int free_block = q->freeobj;
 	unsigned int bucket_size = q->bucket->bucket_size;
-
-	// printf("%d\n", q->freeobj );
-
-	// printf("The bucket size : %ld\n", (*x)->bucket->bucket_size);
 
 	if (free_block == q->totobj) {
 
 		//Delete the entire slab
 		slab_header *prev;
 		prev = q->prev_slab;
-		// printf("%d\n", q->totobj );
-		// printf("LOL\n");
 
 		if (prev == NULL && q->nxt_slab == NULL){
 
 			q->bucket->slab = NULL;
 		}
 		else if(prev == NULL) {
-			// q->bucket->slab->nxt_slab->prev_slab = NULL;
 			q->nxt_slab->prev_slab = NULL;
 			q->bucket->slab = q->nxt_slab;
 		}
@@ -188,7 +193,7 @@ void myfree(const void *ptr){
 
 		if(unmap == -1) fprintf(stderr,"Memory De-allocation failed.\n");
 
-		printf("Slab deleted\n");
+		// printf("Slab deleted\n");
 
 
 	}
@@ -201,22 +206,22 @@ void myfree(const void *ptr){
 		int j = index/32;
 		int i = index%32;
 
-		// printf("%d %d \n", i, j);
-		// printf("bbefore %u\n", q->bitmap[j] );
-
 		if ((q->bitmap[j] & (1 << (31 - i))) >> (31 - i) == 1){
 
-			printf("LOL\n");
 			q->bitmap[j] -= 1 << (31 - i);
-			printf("%d\n",(q->bitmap[j] & (1 << (31 - i))) >> (31 - i));
+
 		}
 		else {
 
-			printf("Can't de allocate Memory that hasn't been allocatd\n");
+			fprintf(stderr,"Can't de allocate Memory that hasn't been allocated\n");
+			q->freeobj--;
 		}
 
-		// printf("bafter %u\n", q->bitmap[j] );
-
 	}
+
+	q->freeobj++;
+
+	(*x)->bucket->bucket_mutex.unlock();
+	//End critical section
 
 }
